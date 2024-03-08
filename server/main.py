@@ -35,14 +35,17 @@ else:
     print("XTTS Model downloaded", flush=True)
 
 print("Loading XTTS", flush=True)
-config = XttsConfig()
-config.load_json(os.path.join(model_path, "config.json"))
-model = Xtts.init_from_config(config)
-model.load_checkpoint(config, checkpoint_dir=model_path, eval=True, use_deepspeed=True if device == "cuda" else False)
-model.to(device)
-print("XTTS Loaded.", flush=True)
-
-print("Running XTTS Server ...", flush=True)
+try:
+    config = XttsConfig()
+    config.load_json(os.path.join(model_path, "config.json"))
+    model = Xtts.init_from_config(config)
+    model.load_checkpoint(config, checkpoint_dir=model_path, eval=True, use_deepspeed=True if device == "cuda" else False)
+    model.to(device)
+    print("XTTS Loaded.", flush=True)
+except Exception as e:
+    print(f"Error loading XTTS: {str(e)}", flush=True)
+    traceback.print_exc()
+    exit(1)
 
 ##### Run fastapi #####
 app = FastAPI(
@@ -51,7 +54,6 @@ app = FastAPI(
     version="0.0.1",
     docs_url="/",
 )
-
 
 @app.post("/clone_speaker")
 def predict_speaker(wav_file: UploadFile):
@@ -183,3 +185,11 @@ def get_speakers():
 @app.get("/languages")
 def get_languages():
     return config.languages
+
+
+print("Running XTTS Server ...", flush=True)
+try:
+    uvicorn.run(app, host="0.0.0.0", port=6006)
+except Exception as e:
+    print(f"Error running XTTS Server: {str(e)}", flush=True)
+    traceback.print_exc()
