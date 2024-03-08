@@ -7,6 +7,8 @@ import torch
 import numpy as np
 from typing import List
 from pydantic import BaseModel
+import uvicorn
+import traceback
 
 from fastapi import FastAPI, UploadFile, Body
 from fastapi.responses import StreamingResponse
