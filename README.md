@@ -11,19 +11,19 @@ https://github.com/coqui-ai/xtts-streaming-server/assets/17219561/7220442a-e88a-
 CUDA 12.1:
 
 ```bash
-$ docker run --gpus=all -e COQUI_TOS_AGREED=1 --rm -p 8000:80 ghcr.io/coqui-ai/xtts-streaming-server:latest-cuda121
+$ docker run --gpus=all -e COQUI_TOS_AGREED=1 --rm -p 6006:80 ghcr.io/coqui-ai/xtts-streaming-server:latest-cuda121
 ```
 
 CUDA 11.8 (for older cards):
 
 ```bash
-$ docker run --gpus=all -e COQUI_TOS_AGREED=1 --rm -p 8000:80 ghcr.io/coqui-ai/xtts-streaming-server:latest
+$ docker run --gpus=all -e COQUI_TOS_AGREED=1 --rm -p 6006:80 ghcr.io/coqui-ai/xtts-streaming-server:latest
 ```
 
 CPU (not recommended):
 
 ```bash
-$ docker run -e COQUI_TOS_AGREED=1 --rm -p 8000:80 ghcr.io/coqui-ai/xtts-streaming-server:latest-cpu
+$ docker run -e COQUI_TOS_AGREED=1 --rm -p 6006:80 ghcr.io/coqui-ai/xtts-streaming-server:latest-cpu
 ```
 
 Run with a fine-tuned model:
@@ -34,7 +34,7 @@ Make sure the model folder `/path/to/model/folder`  contains the following files
 - `vocab.json`
 
 ```bash
-$ docker run -v /path/to/model/folder:/app/tts_models --gpus=all -e COQUI_TOS_AGREED=1  --rm -p 8000:80 ghcr.io/coqui-ai/xtts-streaming-server:latest`
+$ docker run -v /path/to/model/folder:/app/tts_models --gpus=all -e COQUI_TOS_AGREED=1  --rm -p 6006:80 ghcr.io/coqui-ai/xtts-streaming-server:latest`
 ```
 
 Setting the `COQUI_TOS_AGREED` environment variable to `1` indicates you have read and agreed to
@@ -50,7 +50,7 @@ To build the Docker container Pytorch 2.1 and CUDA 11.8 :
 $ git clone git@github.com:coqui-ai/xtts-streaming-server.git
 $ cd xtts-streaming-server/server
 $ docker build -t xtts-stream . -f DOCKERFILE
-$ docker run --gpus all -e COQUI_TOS_AGREED=1 --rm -p 8000:80 xtts-stream
+$ docker run --gpus all -e COQUI_TOS_AGREED=1 --rm -p 6006:80 xtts-stream
 ```
 
 Setting the `COQUI_TOS_AGREED` environment variable to `1` indicates you have read and agreed to

@@ -97,8 +97,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--server_url",
-        default="http://localhost:8000",
-        help="Server url http://localhost:8000 default, change to your server location "
+        default="http://localhost:6006",
+        help="Server url http://localhost:6006 default, change to your server location "
     )
     parser.add_argument(
         "--stream_chunk_size",
