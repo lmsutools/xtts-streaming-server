@@ -6,7 +6,7 @@ import json
 import os
 
 
-SERVER_URL = 'https://2869a54a39051.notebooksc.jarvislabs.net'
+SERVER_URL = 'https://0341d96825a01.notebooksc.jarvislabs.net'
 OUTPUT = "./demo_outputs"
 cloned_speakers = {}
 

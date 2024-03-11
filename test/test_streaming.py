@@ -77,7 +77,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--text",
-        default="It took me quite a long time to develop a voice and now that I have it I am not going to be silent.",
+        default="So If you encounter permission errors while installing packages, you can try running PowerShell as an administrator. Right-click on the PowerShell icon and select Run as Administrator. You should add a check to ensure that a file is selected before sending the request. Please use our dedicated channels for questions and discussion. Help is much more valuable if it's shared publicly so that more people can benefit from it.",
         help="text input for TTS"
     )
     parser.add_argument(
@@ -97,12 +97,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--server_url",
-        default="http://localhost:6006",
-        help="Server url http://localhost:6006 default, change to your server location "
+        default="https://0341d96825a01.notebooksc.jarvislabs.net",
+        help="Server url https://0341d96825a01.notebooksc.jarvislabs.net default, change to your server location "
     )
     parser.add_argument(
         "--stream_chunk_size",
-        default="20",
+        default="15",
         help="Stream chunk size , 20 default, reducing will get faster latency but may degrade quality"
     )
     args = parser.parse_args()

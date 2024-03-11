@@ -18,6 +18,8 @@ This repository contains a streaming server for the XTTS (Cross-lingual Text-to-
 
 ## Setup
 
+0. Change the server url in demo.py and test_streaming.py
+   
 1. Clone the repository:
    ```
    git clone https://github.com/coqui-ai/xtts-streaming-server.git
