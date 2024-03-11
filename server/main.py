@@ -10,11 +10,9 @@ from pydantic import BaseModel
 import uvicorn
 import traceback
 
-from fastapi import FastAPI, UploadFile, Body
+from fastapi import FastAPI, UploadFile, Body, Request
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-
-from fastapi.responses import StreamingResponse
-
 
 from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import Xtts
@@ -158,27 +156,6 @@ def create_app():
             media_type="audio/wav",
         )
 
-
-    @app.post("/api/tts-generate-streaming")
-    def predict_streaming_endpoint(
-        text: str = Form(...),
-        voice: str = Form(...),
-        language: str = Form(...),
-        output_file: str = Form(...)
-    ):
-        parsed_input = StreamingInputs(
-            speaker_embedding=[],  # Provide the appropriate speaker embedding
-            gpt_cond_latent=[],    # Provide the appropriate GPT conditioning latent
-            text=text,
-            language=language,
-            add_wav_header=True,
-            stream_chunk_size="20"
-        )
-        return StreamingResponse(
-            predict_streaming_generator(parsed_input),
-            media_type="audio/wav",
-        )
-    
     @app.post("/tts")
     def predict_speech(parsed_input: TTSInputs):
         speaker_embedding = torch.tensor(parsed_input.speaker_embedding).unsqueeze(0).unsqueeze(-1)
@@ -213,6 +190,14 @@ def create_app():
     @app.get("/languages")
     def get_languages():
         return config.languages
+
+    # Add a catch-all route to handle 404 Not Found errors
+    @app.exception_handler(404)
+    async def not_found_handler(request: Request, exc):
+        return JSONResponse(
+            status_code=404,
+            content={"message": "The requested resource was not found."},
+        )
 
     return app
 
