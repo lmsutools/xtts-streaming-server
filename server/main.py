@@ -9,6 +9,7 @@ from typing import List
 from pydantic import BaseModel
 import uvicorn
 import traceback
+import sys
 
 from fastapi import FastAPI, UploadFile, Body
 from fastapi.responses import StreamingResponse
@@ -191,7 +192,7 @@ def get_languages():
 
 print("Running XTTS Server ...", flush=True)
 try:
-    uvicorn.run(app, host="0.0.0.0", port=6006)
+    uvicorn.run(app, host="0.0.0.0", port=6006, workers=2)
 except Exception as e:
     print(f"Error running XTTS Server: {str(e)}", flush=True)
     traceback.print_exc()
