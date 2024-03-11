@@ -190,9 +190,9 @@ def get_languages():
     return config.languages
 
 
-print("Running XTTS Server ...", flush=True)
-try:
-    uvicorn.run(app, host="0.0.0.0", port=6006, workers=2)
-except Exception as e:
-    print(f"Error running XTTS Server: {str(e)}", flush=True)
-    traceback.print_exc()
+# print("Running XTTS Server ...", flush=True)
+# try:
+#     uvicorn.run(app, host="0.0.0.0", port=6006, workers=2)
+# except Exception as e:
+#     print(f"Error running XTTS Server: {str(e)}", flush=True)
+#     traceback.print_exc()

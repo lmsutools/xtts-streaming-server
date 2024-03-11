@@ -1,3 +1,7 @@
+# Just install
+pip install -r server/requirements.txt^C
+python server/main.py
+
 # XTTS Streaming Server
 
 This repository contains a streaming server for the XTTS (Cross-lingual Text-to-Speech) model, which allows for real-time text-to-speech synthesis in multiple languages. The server utilizes the XTTS model to generate high-quality audio from given text input.
