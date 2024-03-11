@@ -11,7 +11,10 @@ import uvicorn
 import traceback
 
 from fastapi import FastAPI, UploadFile, Body
+from fastapi.middleware.cors import CORSMiddleware
+
 from fastapi.responses import StreamingResponse
+
 
 from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import Xtts
@@ -99,6 +102,15 @@ def create_app():
         docs_url="/",
     )
 
+    # Add CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     @app.post("/clone_speaker")
     def predict_speaker(wav_file: UploadFile):
         """Compute conditioning inputs from reference audio file."""
@@ -146,6 +158,27 @@ def create_app():
             media_type="audio/wav",
         )
 
+
+    @app.post("/api/tts-generate-streaming")
+    def predict_streaming_endpoint(
+        text: str = Form(...),
+        voice: str = Form(...),
+        language: str = Form(...),
+        output_file: str = Form(...)
+    ):
+        parsed_input = StreamingInputs(
+            speaker_embedding=[],  # Provide the appropriate speaker embedding
+            gpt_cond_latent=[],    # Provide the appropriate GPT conditioning latent
+            text=text,
+            language=language,
+            add_wav_header=True,
+            stream_chunk_size="20"
+        )
+        return StreamingResponse(
+            predict_streaming_generator(parsed_input),
+            media_type="audio/wav",
+        )
+    
     @app.post("/tts")
     def predict_speech(parsed_input: TTSInputs):
         speaker_embedding = torch.tensor(parsed_input.speaker_embedding).unsqueeze(0).unsqueeze(-1)
