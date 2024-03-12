@@ -97,8 +97,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--server_url",
-        default="https://2067aca7a89f1.notebooksb.jarvislabs.net",
-        help="Server url https://2067aca7a89f1.notebooksb.jarvislabs.net default, change to your server location "
+        default="https://c762ac7d104d1.notebooksg.jarvislabs.net",
+        help="Server url https://c762ac7d104d1.notebooksg.jarvislabs.net default, change to your server location "
     )
     parser.add_argument(
         "--stream_chunk_size",

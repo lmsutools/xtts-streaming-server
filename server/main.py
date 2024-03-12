@@ -10,9 +10,6 @@ from pydantic import BaseModel
 
 from fastapi import FastAPI, UploadFile, Body
 from fastapi.responses import StreamingResponse
-import uvicorn
-from concurrent.futures import ThreadPoolExecutor
-import asyncio
 
 from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import Xtts
@@ -55,9 +52,6 @@ app = FastAPI(
     docs_url="/",
 )
 
-# Executor for async GPU tasks
-executor = ThreadPoolExecutor(max_workers=os.cpu_count())
-
 
 def postprocess(wav):
     """Post process the output waveform"""
@@ -98,7 +92,7 @@ class StreamingInputs(BaseModel):
     stream_chunk_size: str = "20"
 
 
-async def predict_streaming_generator(parsed_input: dict = Body(...)):
+def predict_streaming_generator(parsed_input: dict = Body(...)):
     speaker_embedding = torch.tensor(parsed_input.speaker_embedding).unsqueeze(0).unsqueeze(-1)
     gpt_cond_latent = torch.tensor(parsed_input.gpt_cond_latent).reshape((-1, 1024)).unsqueeze(0)
     text = parsed_input.text
@@ -107,9 +101,14 @@ async def predict_streaming_generator(parsed_input: dict = Body(...)):
     stream_chunk_size = int(parsed_input.stream_chunk_size)
     add_wav_header = parsed_input.add_wav_header
 
-    loop = asyncio.get_event_loop()
-    chunks = await loop.run_in_executor(
-        executor, model.inference_stream, text, language, gpt_cond_latent, speaker_embedding, stream_chunk_size=stream_chunk_size, enable_text_splitting=True
+
+    chunks = model.inference_stream(
+        text,
+        language,
+        gpt_cond_latent,
+        speaker_embedding,
+        stream_chunk_size=stream_chunk_size,
+        enable_text_splitting=True
     )
 
     for i, chunk in enumerate(chunks):
@@ -122,31 +121,9 @@ async def predict_streaming_generator(parsed_input: dict = Body(...)):
 
 
 @app.post("/tts_stream")
-async def predict_streaming_endpoint(parsed_input: StreamingInputs):
-    async def streaming_generator():
-        speaker_embedding = torch.tensor(parsed_input.speaker_embedding).unsqueeze(0).unsqueeze(-1)
-        gpt_cond_latent = torch.tensor(parsed_input.gpt_cond_latent).reshape((-1, 1024)).unsqueeze(0)
-        text = parsed_input.text
-        language = parsed_input.language
-
-        stream_chunk_size = int(parsed_input.stream_chunk_size)
-        add_wav_header = parsed_input.add_wav_header
-
-        loop = asyncio.get_event_loop()
-        chunks = await loop.run_in_executor(
-            executor, model.inference_stream, text, language, gpt_cond_latent, speaker_embedding, stream_chunk_size, True
-        )
-
-        for i, chunk in enumerate(chunks):
-            chunk = postprocess(chunk)
-            if i == 0 and add_wav_header:
-                yield encode_audio_common(b"", encode_base64=False)
-                yield chunk.tobytes()
-            else:
-                yield chunk.tobytes()
-
+def predict_streaming_endpoint(parsed_input: StreamingInputs):
     return StreamingResponse(
-        streaming_generator(),
+        predict_streaming_generator(parsed_input),
         media_type="audio/wav",
     )
 
@@ -156,11 +133,7 @@ class TTSInputs(BaseModel):
     text: str
     language: str
 
-
         
 @app.get("/languages")
-async def get_languages():
+def get_languages():
     return config.languages
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=6006)
