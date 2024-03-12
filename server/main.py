@@ -175,8 +175,16 @@ def create_app():
 
     @app.post("/tts_stream", response_class=StreamingResponse)
     async def predict_streaming_endpoint(parsed_input: StreamingInputs):
+        input_dict = {
+            'speaker_embedding': parsed_input.speaker_embedding,
+            'gpt_cond_latent': parsed_input.gpt_cond_latent,
+            'text': parsed_input.text,
+            'language': parsed_input.language,
+            'add_wav_header': parsed_input.add_wav_header,
+            'stream_chunk_size': parsed_input.stream_chunk_size
+        }
         return StreamingResponse(
-            predict_streaming_generator(parsed_input.dict()),
+            predict_streaming_generator(input_dict),
             media_type="audio/wav",
         )
 
