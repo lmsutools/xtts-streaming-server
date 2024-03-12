@@ -7,7 +7,7 @@ import torch
 import numpy as np
 from typing import List
 from pydantic import BaseModel
-from fastapi import FastAPI, UploadFile, Body, HTTPException
+from fastapi import FastAPI, UploadFile, Body, HTTPException, Request
 from fastapi.responses import StreamingResponse
 import aiofiles
 import asyncio
@@ -67,7 +67,7 @@ async def exception_handler(request, exc):
 
 @app.post("/clone_speaker")
 @limiter.limit("10/minute")
-async def predict_speaker(wav_file: UploadFile):
+async def predict_speaker(request: Request, wav_file: UploadFile):
     try:
         temp_audio_name = next(tempfile._get_candidate_names())
         async with aiofiles.open(temp_audio_name, "wb") as temp:
