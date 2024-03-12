@@ -4,7 +4,7 @@ import random
 
 class TTSTestUser(HttpUser):
     wait_time = between(1, 2)  # Specifies the wait time between executing tasks
-    host = "https://2067aca7a89f1.notebooksb.jarvislabs.net"  # Predefined host URL
+    host = "https://c762ac7d104d1.notebooksg.jarvislabs.net"  # Predefined host URL
 
     def on_start(self):
         """Load the default speaker details at the start of the test"""

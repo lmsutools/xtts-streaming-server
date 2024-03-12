@@ -105,33 +105,50 @@ class StreamingInputs(BaseModel):
     stream_chunk_size: str = "20"
 
 
-def predict_streaming_generator(parsed_input: dict = Body(...)):
-    speaker_embedding = torch.tensor(parsed_input.speaker_embedding).unsqueeze(0).unsqueeze(-1)
-    gpt_cond_latent = torch.tensor(parsed_input.gpt_cond_latent).reshape((-1, 1024)).unsqueeze(0)
-    text = parsed_input.text
-    language = parsed_input.language
+async def predict_streaming_generator(parsed_input: dict = Body(...)):
+    try:
+        speaker_embedding = torch.tensor(parsed_input.speaker_embedding).unsqueeze(0).unsqueeze(-1).to(device)
+        gpt_cond_latent = torch.tensor(parsed_input.gpt_cond_latent).reshape((-1, 1024)).unsqueeze(0).to(device)
+        text = parsed_input.text
+        language = parsed_input.language
 
-    stream_chunk_size = int(parsed_input.stream_chunk_size)
-    add_wav_header = parsed_input.add_wav_header
+        stream_chunk_size = int(parsed_input.stream_chunk_size)
+        add_wav_header = parsed_input.add_wav_header
 
+        chunks = model.inference_stream(
+            text,
+            language,
+            gpt_cond_latent,
+            speaker_embedding,
+            stream_chunk_size=stream_chunk_size,
+            enable_text_splitting=True
+        )
 
-    chunks = model.inference_stream(
-        text,
-        language,
-        gpt_cond_latent,
-        speaker_embedding,
-        stream_chunk_size=stream_chunk_size,
-        enable_text_splitting=True
-    )
+        for i, chunk in enumerate(chunks):
+            try:
+                chunk = await postprocess(chunk)
+                if i == 0 and add_wav_header:
+                    yield encode_audio_common(b"", encode_base64=False)
+                    yield chunk.tobytes()
+                else:
+                    yield chunk.tobytes()
+            except Exception as e:
+                print(f"Error in postprocess - {repr(e)}")
+                raise
+            finally:
+                # Free up GPU memory
+                del chunk
+                torch.cuda.empty_cache()
 
-    for i, chunk in enumerate(chunks):
-        chunk = postprocess(chunk)
-        if i == 0 and add_wav_header:
-            yield encode_audio_common(b"", encode_base64=False)
-            yield chunk.tobytes()
-        else:
-            yield chunk.tobytes()
+    except Exception as e:
+        print(f"Error in predict_streaming_generator - {repr(e)}")
+        raise
 
+    finally:
+        # Free up GPU memory
+        del speaker_embedding
+        del gpt_cond_latent
+        torch.cuda.empty_cache()
 
 @app.post("/tts_stream")
 def predict_streaming_endpoint(parsed_input: StreamingInputs):
