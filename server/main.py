@@ -9,6 +9,7 @@ from typing import List
 from pydantic import BaseModel
 import uvicorn
 import traceback
+import asyncio
 
 from fastapi import FastAPI, UploadFile, Body, Request
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -26,29 +27,33 @@ if not torch.cuda.is_available() and device == "cuda":
 
 custom_model_path = os.environ.get("CUSTOM_MODEL_PATH", "/app/tts_models")
 
-if os.path.exists(custom_model_path) and os.path.isfile(custom_model_path + "/config.json"):
-    model_path = custom_model_path
-    print("Loading custom model from", model_path, flush=True)
-else:
-    print("Loading default model", flush=True)
-    model_name = "tts_models/multilingual/multi-dataset/xtts_v2"
-    print("Downloading XTTS Model:", model_name, flush=True)
-    ModelManager().download_model(model_name)
-    model_path = os.path.join(get_user_data_dir("tts"), model_name.replace("/", "--"))
-    print("XTTS Model downloaded", flush=True)
+async def load_model():
+    if os.path.exists(custom_model_path) and os.path.isfile(custom_model_path + "/config.json"):
+        model_path = custom_model_path
+        print("Loading custom model from", model_path, flush=True)
+    else:
+        print("Loading default model", flush=True)
+        model_name = "tts_models/multilingual/multi-dataset/xtts_v2"
+        print("Downloading XTTS Model:", model_name, flush=True)
+        await ModelManager().download_model(model_name)
+        model_path = os.path.join(get_user_data_dir("tts"), model_name.replace("/", "--"))
+        print("XTTS Model downloaded", flush=True)
 
-print("Loading XTTS", flush=True)
-try:
-    config = XttsConfig()
-    config.load_json(os.path.join(model_path, "config.json"))
-    model = Xtts.init_from_config(config)
-    model.load_checkpoint(config, checkpoint_dir=model_path, eval=True, use_deepspeed=True if device == "cuda" else False)
-    model.to(device)
-    print("XTTS Loaded.", flush=True)
-except Exception as e:
-    print(f"Error loading XTTS: {str(e)}", flush=True)
-    traceback.print_exc()
-    exit(1)
+    print("Loading XTTS", flush=True)
+    try:
+        config = XttsConfig()
+        config.load_json(os.path.join(model_path, "config.json"))
+        model = Xtts.init_from_config(config)
+        await model.load_checkpoint(config, checkpoint_dir=model_path, eval=True, use_deepspeed=True if device == "cuda" else False)
+        await model.to(device, non_blocking=True)
+        print("XTTS Loaded.", flush=True)
+        return model
+    except Exception as e:
+        print(f"Error loading XTTS: {str(e)}", flush=True)
+        traceback.print_exc()
+        exit(1)
+
+model = asyncio.run(load_model())
 
 def postprocess(wav):
     """Post process the output waveform"""
@@ -110,12 +115,12 @@ def create_app():
     )
 
     @app.post("/clone_speaker")
-    def predict_speaker(wav_file: UploadFile):
+    async def predict_speaker(wav_file: UploadFile):
         """Compute conditioning inputs from reference audio file."""
         temp_audio_name = next(tempfile._get_candidate_names())
-        with open(temp_audio_name, "wb") as temp, torch.inference_mode():
-            temp.write(io.BytesIO(wav_file.file.read()).getbuffer())
-            gpt_cond_latent, speaker_embedding = model.get_conditioning_latents(
+        with open(temp_audio_name, "wb") as temp:
+            temp.write(io.BytesIO(await wav_file.read()).getbuffer())
+            gpt_cond_latent, speaker_embedding = await model.get_conditioning_latents(
                 temp_audio_name
             )
         return {
@@ -123,47 +128,44 @@ def create_app():
             "speaker_embedding": speaker_embedding.cpu().squeeze().half().tolist(),
         }
 
-    def predict_streaming_generator(parsed_input: dict = Body(...)):
-        speaker_embedding = torch.tensor(parsed_input.speaker_embedding).unsqueeze(0).unsqueeze(-1)
-        gpt_cond_latent = torch.tensor(parsed_input.gpt_cond_latent).reshape((-1, 1024)).unsqueeze(0)
+    async def predict_streaming_generator(parsed_input: dict = Body(...)):
+        speaker_embedding = torch.tensor(parsed_input.speaker_embedding).unsqueeze(0).unsqueeze(-1).to(device, non_blocking=True)
+        gpt_cond_latent = torch.tensor(parsed_input.gpt_cond_latent).reshape((-1, 1024)).unsqueeze(0).to(device, non_blocking=True)
         text = parsed_input.text
         language = parsed_input.language
 
         stream_chunk_size = int(parsed_input.stream_chunk_size)
         add_wav_header = parsed_input.add_wav_header
 
-        chunks = model.inference_stream(
+        async for chunk in model.inference_stream(
             text,
             language,
             gpt_cond_latent,
             speaker_embedding,
             stream_chunk_size=stream_chunk_size,
             enable_text_splitting=True
-        )
-
-        for i, chunk in enumerate(chunks):
+        ):
             chunk = postprocess(chunk)
-            if i == 0 and add_wav_header:
+            if add_wav_header:
                 yield encode_audio_common(b"", encode_base64=False)
-                yield chunk.tobytes()
-            else:
-                yield chunk.tobytes()
+                add_wav_header = False
+            yield chunk.tobytes()
 
-    @app.post("/tts_stream")
-    def predict_streaming_endpoint(parsed_input: StreamingInputs):
+    @app.post("/tts_stream", response_class=StreamingResponse)
+    async def predict_streaming_endpoint(parsed_input: StreamingInputs):
         return StreamingResponse(
-            predict_streaming_generator(parsed_input),
+            predict_streaming_generator(parsed_input.dict()),
             media_type="audio/wav",
         )
 
     @app.post("/tts")
-    def predict_speech(parsed_input: TTSInputs):
-        speaker_embedding = torch.tensor(parsed_input.speaker_embedding).unsqueeze(0).unsqueeze(-1)
-        gpt_cond_latent = torch.tensor(parsed_input.gpt_cond_latent).reshape((-1, 1024)).unsqueeze(0)
+    async def predict_speech(parsed_input: TTSInputs):
+        speaker_embedding = torch.tensor(parsed_input.speaker_embedding).unsqueeze(0).unsqueeze(-1).to(device, non_blocking=True)
+        gpt_cond_latent = torch.tensor(parsed_input.gpt_cond_latent).reshape((-1, 1024)).unsqueeze(0).to(device, non_blocking=True)
         text = parsed_input.text
         language = parsed_input.language
 
-        out = model.inference(
+        out = await model.inference(
             text,
             language,
             gpt_cond_latent,
@@ -175,7 +177,7 @@ def create_app():
         return encode_audio_common(wav.tobytes())
 
     @app.get("/studio_speakers")
-    def get_speakers():
+    async def get_speakers():
         if hasattr(model, "speaker_manager") and hasattr(model.speaker_manager, "speakers"):
             return {
                 speaker: {
@@ -188,7 +190,7 @@ def create_app():
             return {}
 
     @app.get("/languages")
-    def get_languages():
+    async def get_languages():
         return config.languages
 
     # Add a catch-all route to handle 404 Not Found errors

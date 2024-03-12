@@ -77,7 +77,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--text",
-        default="So If you encounter permission errors while installing packages, you can try running PowerShell as an administrator. Right-click on the PowerShell icon and select Run as Administrator. You should add a check to ensure that a file is selected before sending the request. Please use our dedicated channels for questions and discussion. Help is much more valuable if it's shared publicly so that more people can benefit from it.",
+        default="So If you encounter permission errors while installing packages, you can try running PowerShell",
         help="text input for TTS"
     )
     parser.add_argument(
@@ -97,8 +97,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--server_url",
-        default="https://0341d96825a01.notebooksc.jarvislabs.net",
-        help="Server url https://0341d96825a01.notebooksc.jarvislabs.net default, change to your server location "
+        default="https://2067aca7a89f1.notebooksb.jarvislabs.net",
+        help="Server url https://2067aca7a89f1.notebooksb.jarvislabs.net default, change to your server location "
     )
     parser.add_argument(
         "--stream_chunk_size",
