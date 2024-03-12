@@ -134,7 +134,7 @@ async def predict_streaming_endpoint(parsed_input: StreamingInputs):
 
         loop = asyncio.get_event_loop()
         chunks = await loop.run_in_executor(
-            executor, model.inference_stream, text, language, gpt_cond_latent, speaker_embedding, stream_chunk_size=stream_chunk_size, enable_text_splitting=True
+            executor, model.inference_stream, text, language, gpt_cond_latent, speaker_embedding, stream_chunk_size, True
         )
 
         for i, chunk in enumerate(chunks):
