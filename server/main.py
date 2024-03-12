@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from fastapi import FastAPI, UploadFile, Body
 from fastapi.responses import StreamingResponse
+import uvicorn
 
 from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import Xtts
@@ -137,3 +138,7 @@ class TTSInputs(BaseModel):
 @app.get("/languages")
 def get_languages():
     return config.languages
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=6006)
