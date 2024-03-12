@@ -7,9 +7,12 @@ import torch
 import numpy as np
 from typing import List
 from pydantic import BaseModel
-from fastapi import FastAPI, UploadFile, Body, HTTPException
+
+from fastapi import FastAPI, UploadFile, Body
 from fastapi.responses import StreamingResponse
-import aiofiles
+import uvicorn
+from concurrent.futures import ThreadPoolExecutor
+import asyncio
 
 from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import Xtts
@@ -19,7 +22,7 @@ from TTS.utils.manage import ModelManager
 torch.set_num_threads(int(os.environ.get("NUM_THREADS", os.cpu_count())))
 device = torch.device("cuda" if os.environ.get("USE_CPU", "0") == "0" else "cpu")
 if not torch.cuda.is_available() and device == "cuda":
-    raise RuntimeError("CUDA device unavailable, please use Dockerfile.cpu instead.")
+    raise RuntimeError("CUDA device unavailable, please use Dockerfile.cpu instead.") 
 
 custom_model_path = os.environ.get("CUSTOM_MODEL_PATH", "/app/tts_models")
 
@@ -44,6 +47,7 @@ print("XTTS Loaded.", flush=True)
 
 print("Running XTTS Server ...", flush=True)
 
+##### Run fastapi #####
 app = FastAPI(
     title="XTTS Streaming server",
     description="""XTTS Streaming server""",
@@ -51,6 +55,8 @@ app = FastAPI(
     docs_url="/",
 )
 
+# Executor for async GPU tasks
+executor = ThreadPoolExecutor(max_workers=os.cpu_count())
 
 
 def postprocess(wav):
@@ -92,7 +98,7 @@ class StreamingInputs(BaseModel):
     stream_chunk_size: str = "20"
 
 
-def predict_streaming_generator(parsed_input: dict = Body(...)):
+async def predict_streaming_generator(parsed_input: dict = Body(...)):
     speaker_embedding = torch.tensor(parsed_input.speaker_embedding).unsqueeze(0).unsqueeze(-1)
     gpt_cond_latent = torch.tensor(parsed_input.gpt_cond_latent).reshape((-1, 1024)).unsqueeze(0)
     text = parsed_input.text
@@ -101,14 +107,9 @@ def predict_streaming_generator(parsed_input: dict = Body(...)):
     stream_chunk_size = int(parsed_input.stream_chunk_size)
     add_wav_header = parsed_input.add_wav_header
 
-
-    chunks = model.inference_stream(
-        text,
-        language,
-        gpt_cond_latent,
-        speaker_embedding,
-        stream_chunk_size=stream_chunk_size,
-        enable_text_splitting=True
+    loop = asyncio.get_event_loop()
+    chunks = await loop.run_in_executor(
+        executor, model.inference_stream, text, language, gpt_cond_latent, speaker_embedding, stream_chunk_size=stream_chunk_size, enable_text_splitting=True
     )
 
     for i, chunk in enumerate(chunks):
@@ -121,9 +122,9 @@ def predict_streaming_generator(parsed_input: dict = Body(...)):
 
 
 @app.post("/tts_stream")
-def predict_streaming_endpoint(parsed_input: StreamingInputs):
+async def predict_streaming_endpoint(parsed_input: StreamingInputs):
     return StreamingResponse(
-        predict_streaming_generator(parsed_input),
+        await predict_streaming_generator(parsed_input.dict()),
         media_type="audio/wav",
     )
 
@@ -134,6 +135,10 @@ class TTSInputs(BaseModel):
     language: str
 
 
+        
 @app.get("/languages")
-def get_languages():
+async def get_languages():
     return config.languages
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=6006)
