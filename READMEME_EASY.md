@@ -1,5 +1,5 @@
 # Just install
-pip install -r server/requirements.txt^C
+pip install -r server/requirements.txt
 python server/main.py
 
 # XTTS Streaming Server

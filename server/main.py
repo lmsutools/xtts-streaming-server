@@ -28,6 +28,8 @@ if not torch.cuda.is_available() and device == "cuda":
 
 custom_model_path = os.environ.get("CUSTOM_MODEL_PATH", "/app/tts_models")
 
+
+
 async def load_model():
     loop = asyncio.get_running_loop()
 
@@ -38,7 +40,12 @@ async def load_model():
         print("Loading default model", flush=True)
         model_name = "tts_models/multilingual/multi-dataset/xtts_v2"
         print("Downloading XTTS Model:", model_name, flush=True)
-        await ModelManager().download_model(model_name)
+
+        async def download_model_async(model_name):
+            model_manager = ModelManager()
+            await loop.run_in_executor(None, model_manager.download_model, model_name)
+
+        await download_model_async(model_name)
         model_path = os.path.join(get_user_data_dir("tts"), model_name.replace("/", "--"))
         print("XTTS Model downloaded", flush=True)
 
