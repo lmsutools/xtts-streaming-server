@@ -173,8 +173,8 @@ def create_app():
                 add_wav_header = False
             yield chunk.tobytes()
 
-    @app.post("/tts_stream", response_class=StreamingResponse)
-    async def predict_streaming_endpoint(parsed_input: StreamingInputs):
+    @app.post("/tts_stream")
+    def predict_streaming_endpoint(parsed_input: StreamingInputs):
         input_dict = {
             'speaker_embedding': parsed_input.speaker_embedding,
             'gpt_cond_latent': parsed_input.gpt_cond_latent,
