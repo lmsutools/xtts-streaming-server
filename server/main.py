@@ -10,6 +10,7 @@ from pydantic import BaseModel
 import uvicorn
 import traceback
 import asyncio
+import concurrent.futures
 
 from fastapi import FastAPI, UploadFile, Body, Request
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -28,6 +29,8 @@ if not torch.cuda.is_available() and device == "cuda":
 custom_model_path = os.environ.get("CUSTOM_MODEL_PATH", "/app/tts_models")
 
 async def load_model():
+    loop = asyncio.get_running_loop()
+
     if os.path.exists(custom_model_path) and os.path.isfile(custom_model_path + "/config.json"):
         model_path = custom_model_path
         print("Loading custom model from", model_path, flush=True)
@@ -42,10 +45,19 @@ async def load_model():
     print("Loading XTTS", flush=True)
     try:
         config = XttsConfig()
-        config.load_json(os.path.join(model_path, "config.json"))
+        await loop.run_in_executor(None, config.load_json, os.path.join(model_path, "config.json"))
         model = Xtts.init_from_config(config)
-        await model.load_checkpoint(config, checkpoint_dir=model_path, eval=True, use_deepspeed=True if device == "cuda" else False)
-        await model.to(device, non_blocking=True)
+
+        def load_checkpoint():
+            model.load_checkpoint(config, checkpoint_dir=model_path, eval=True, use_deepspeed=True if device == "cuda" else False)
+
+        await loop.run_in_executor(None, load_checkpoint)
+
+        def move_to_device():
+            model.to(device)
+
+        await loop.run_in_executor(None, move_to_device)
+
         print("XTTS Loaded.", flush=True)
         return model
     except Exception as e:
@@ -120,9 +132,12 @@ def create_app():
         temp_audio_name = next(tempfile._get_candidate_names())
         with open(temp_audio_name, "wb") as temp:
             temp.write(io.BytesIO(await wav_file.read()).getbuffer())
-            gpt_cond_latent, speaker_embedding = await model.get_conditioning_latents(
-                temp_audio_name
-            )
+            loop = asyncio.get_running_loop()
+
+            def get_conditioning_latents():
+                return model.get_conditioning_latents(temp_audio_name)
+
+            gpt_cond_latent, speaker_embedding = await loop.run_in_executor(None, get_conditioning_latents)
         return {
             "gpt_cond_latent": gpt_cond_latent.cpu().squeeze().half().tolist(),
             "speaker_embedding": speaker_embedding.cpu().squeeze().half().tolist(),
@@ -165,12 +180,17 @@ def create_app():
         text = parsed_input.text
         language = parsed_input.language
 
-        out = await model.inference(
-            text,
-            language,
-            gpt_cond_latent,
-            speaker_embedding,
-        )
+        loop = asyncio.get_running_loop()
+
+        def inference_call():
+            return model.inference(
+                text,
+                language,
+                gpt_cond_latent,
+                speaker_embedding,
+            )
+
+        out = await loop.run_in_executor(None, inference_call)
 
         wav = postprocess(torch.tensor(out["wav"]))
 
