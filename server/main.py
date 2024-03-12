@@ -123,8 +123,30 @@ async def predict_streaming_generator(parsed_input: dict = Body(...)):
 
 @app.post("/tts_stream")
 async def predict_streaming_endpoint(parsed_input: StreamingInputs):
+    async def streaming_generator():
+        speaker_embedding = torch.tensor(parsed_input.speaker_embedding).unsqueeze(0).unsqueeze(-1)
+        gpt_cond_latent = torch.tensor(parsed_input.gpt_cond_latent).reshape((-1, 1024)).unsqueeze(0)
+        text = parsed_input.text
+        language = parsed_input.language
+
+        stream_chunk_size = int(parsed_input.stream_chunk_size)
+        add_wav_header = parsed_input.add_wav_header
+
+        loop = asyncio.get_event_loop()
+        chunks = await loop.run_in_executor(
+            executor, model.inference_stream, text, language, gpt_cond_latent, speaker_embedding, stream_chunk_size=stream_chunk_size, enable_text_splitting=True
+        )
+
+        for i, chunk in enumerate(chunks):
+            chunk = postprocess(chunk)
+            if i == 0 and add_wav_header:
+                yield encode_audio_common(b"", encode_base64=False)
+                yield chunk.tobytes()
+            else:
+                yield chunk.tobytes()
+
     return StreamingResponse(
-        await predict_streaming_generator(parsed_input.dict()),
+        streaming_generator(),
         media_type="audio/wav",
     )
 
